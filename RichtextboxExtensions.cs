@@ -28,7 +28,7 @@ namespace dictation5
         {
             int ss = ed.SelectionStart;
             ed.AppendText(NewLine3);
-            ed.AppendText(s);
+            ed.AppendText(s.Replace(".",""));
             int sl = ed.SelectionStart - ss + 1;
 
             Font bold = new Font("Tahoma", 13, FontStyle.Italic);
@@ -43,7 +43,7 @@ namespace dictation5
             //ed.AppendText(NewLine);
             ed.AppendText(NewLine);
             ed.AppendText(NewLine2);
-            ed.AppendText(s);
+            ed.AppendText(s.Replace(".", ""));
             int sl = ed.SelectionStart - ss + 1;
 
             //Font bold = new Font(ed.Font, FontStyle.Bold);
@@ -52,6 +52,11 @@ namespace dictation5
             ed.Select(ss, sl);
             ed.SelectionFont = nameFont;
             ed.AppendText(NewLine);
+        }
+        public static void AppendDiagnosis(this RichTextBox ed, string s)
+        {
+            int ss = ed.SelectionStart;
+            ed.AppendText("ICD10: " + s.Replace(" ","") + NewLine);
         }
     }
 }
