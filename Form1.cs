@@ -19,10 +19,11 @@ namespace dictation5
         public Form1()
         {
             InitializeComponent();
-
+            
             MouseHook.Start();
             MouseHook.MouseAction += new EventHandler(SetAutomationElement);
         }
+
 
         AutomationElement AutomElement = null;
         private void SetAutomationElement(object sender, EventArgs e)
@@ -32,11 +33,11 @@ namespace dictation5
             Console.WriteLine(AutomElement.Current.Name);
         }
 
+
         private async void button1_ClickAsync(object sender, EventArgs e)
         {
             await ContinuousRecognitionWithFileAsync();
         }
-
 
         // Continuous speech recognition.
         public async Task ContinuousRecognitionWithFileAsync()
@@ -57,7 +58,7 @@ namespace dictation5
                 // Subscribes to events.
                 recognizer.Recognizing += (s, e) =>
                 {
-                    //Console.WriteLine($"RECOGNIZING: Text={e.Result.Text}");
+                    Console.WriteLine($"RECOGNIZING: Text={e.Result.Text}");
                     //AppendText(" " + e.Result.Text);
                 };
 
@@ -65,7 +66,7 @@ namespace dictation5
                 {
                     if (e.Result.Reason == ResultReason.RecognizedSpeech)
                     {
-                        //Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
+                        Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
                         if (e.Result.Text.Trim().ToLower().StartsWith("otsikko"))
                         {
                             AppendText(e.Result.Text.ToLower().Replace("otsikko","").ToUpper(), "title");
@@ -85,7 +86,7 @@ namespace dictation5
                         else if (AutomElement!=null)
                         {
                             // Kirjoitetaan sanelun tulos valittuun AutomationElementtiin
-                            InsertText(AutomElement, e.Result.Text);
+                            Speech.InsertText(AutomElement, e.Result.Text);
                         }
                         else
                         {
@@ -95,7 +96,7 @@ namespace dictation5
                     }
                     else if (e.Result.Reason == ResultReason.NoMatch)
                     {
-                        //Console.WriteLine($"NOMATCH: Speech could not be recognized.");
+                        Console.WriteLine($"NOMATCH: Speech could not be recognized.");
                         AppendText(" NOMATCH: Speech could not be recognized.");
                     }
                 };
@@ -166,82 +167,10 @@ namespace dictation5
             else
             {
                 richTextBox1.AppendLine(text);
-            }
-            
-            
+            } 
         }
 
-        private void InsertText(AutomationElement targetControl, string value)
-        {
-            // Validate arguments / initial setup
-            if (value == null)
-                throw new ArgumentNullException(
-                    "String parameter must not be null.");
-
-            if (targetControl == null)
-                throw new ArgumentNullException(
-                    "AutomationElement parameter must not be null");
-
-            // A series of basic checks prior to attempting an insertion.
-            //
-            // Check #1: Is control enabled?
-            // An alternative to testing for static or read-only controls 
-            // is to filter using 
-            // PropertyCondition(AutomationElement.IsEnabledProperty, true) 
-            // and exclude all read-only text controls from the collection.
-            if (!targetControl.Current.IsEnabled)
-            {
-                throw new InvalidOperationException(
-                    "The control is not enabled.\n\n");
-            }
-
-            // Check #2: Are there styles that prohibit us 
-            //           from sending text to this control?
-            /*if (!targetControl.Current.IsKeyboardFocusable)
-            {
-                throw new InvalidOperationException(
-                    "The control is not focusable.\n\n");
-            }*/
-
-            // Once you have an instance of an AutomationElement,  
-            // check if it supports the ValuePattern pattern.
-            object valuePattern = null;
-
-            if (!targetControl.TryGetCurrentPattern(ValuePattern.Pattern, out valuePattern))
-            {
-                // Elements that support TextPattern 
-                // do not support ValuePattern and TextPattern
-                // does not support setting the text of 
-                // multi-line edit or document controls.
-                // For this reason, text input must be simulated.
-
-                // Set focus for input functionality and begin.
-                targetControl.SetFocus();
-
-                // Pause before sending keyboard input.
-                Thread.Sleep(100);
-
-                // Delete existing content in the control and insert new content.
-                //SendKeys.SendWait("^{HOME}");   // Move to start of control
-                //SendKeys.SendWait("^+{END}");   // Select everything
-                //SendKeys.SendWait("{DEL}");     // Delete selection
-                SendKeys.SendWait(value);
-            }
-            // Control supports the ValuePattern pattern so we can 
-            // use the SetValue method to insert content.
-            else
-            {
-                if (((ValuePattern)valuePattern).Current.IsReadOnly)
-                {
-                    throw new InvalidOperationException(
-                        "The control is read-only.");
-                }
-                else
-                {
-                    ((ValuePattern)valuePattern).SetValue(value);
-                }
-            }
-        }
+        
 
         private void Form1_Load(object sender, EventArgs e)
         {
