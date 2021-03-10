@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CognitiveServices.Speech;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,76 +12,87 @@ namespace dictation5
 {
     public static class Speech
     {
-
-        public static void InsertText(AutomationElement targetControl, string value)
+        //Continuous speech recognition from a microfone
+        public static async Task ContinuousRecognitionMicrofone()
         {
-            // Validate arguments / initial setup
-            if (value == null)
-                throw new ArgumentNullException(
-                    "String parameter must not be null.");
+            var config = SpeechConfig.FromSubscription(
+                Properties.Resources.SubscriptionKey,
+                Properties.Resources.Region);
+            config.SpeechRecognitionLanguage = "fi-FI";
+            config.EnableDictation();
 
-            if (targetControl == null)
-                throw new ArgumentNullException(
-                    "AutomationElement parameter must not be null");
+            var stopRecognition = new TaskCompletionSource<int>();
 
-            // A series of basic checks prior to attempting an insertion.
-            //
-            // Check #1: Is control enabled?
-            // An alternative to testing for static or read-only controls 
-            // is to filter using 
-            // PropertyCondition(AutomationElement.IsEnabledProperty, true) 
-            // and exclude all read-only text controls from the collection.
-            if (!targetControl.Current.IsEnabled)
+            using (var recognizer = new SpeechRecognizer(config))
             {
-                throw new InvalidOperationException(
-                    "The control is not enabled.\n\n");
-            }
+                string text;
 
-            // Check #2: Are there styles that prohibit us 
-            //           from sending text to this control?
-            /*if (!targetControl.Current.IsKeyboardFocusable)
-            {
-                throw new InvalidOperationException(
-                    "The control is not focusable.\n\n");
-            }*/
-
-            // Once you have an instance of an AutomationElement,  
-            // check if it supports the ValuePattern pattern.
-            object valuePattern = null;
-
-            if (!targetControl.TryGetCurrentPattern(ValuePattern.Pattern, out valuePattern))
-            {
-                // Elements that support TextPattern 
-                // do not support ValuePattern and TextPattern
-                // does not support setting the text of 
-                // multi-line edit or document controls.
-                // For this reason, text input must be simulated.
-
-                // Set focus for input functionality and begin.
-                targetControl.SetFocus();
-
-                // Pause before sending keyboard input.
-                Thread.Sleep(100);
-
-                // Delete existing content in the control and insert new content.
-                //SendKeys.SendWait("^{HOME}");   // Move to start of control
-                //SendKeys.SendWait("^+{END}");   // Select everything
-                //SendKeys.SendWait("{DEL}");     // Delete selection
-                SendKeys.SendWait(value);
-            }
-            // Control supports the ValuePattern pattern so we can 
-            // use the SetValue method to insert content.
-            else
-            {
-                if (((ValuePattern)valuePattern).Current.IsReadOnly)
+                // Subscribes to events.
+                recognizer.Recognizing += (s, e) =>
                 {
-                    throw new InvalidOperationException(
-                        "The control is read-only.");
-                }
-                else
+                    Console.WriteLine($"RECOGNIZING: Text={e.Result.Text}");
+                    if (Form1.StopFlag == 1)
+                    {
+                        Console.WriteLine("Lopetetaan puheentunnistus");
+                        stopRecognition.TrySetResult(0);
+                    }
+                };
+
+                recognizer.Recognized += (s, e) =>
                 {
-                    ((ValuePattern)valuePattern).SetValue(value);
-                }
+                    if (e.Result.Reason == ResultReason.RecognizedSpeech)
+                    {
+                        Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
+                        PostProcessing.PostProcessText(e.Result.Text);
+                    }
+                    else if (e.Result.Reason == ResultReason.NoMatch)
+                    {
+                        Console.WriteLine($"NOMATCH: Speech could not be recognized.");
+                        //Form1.AppendText(" NOMATCH: Speech could not be recognized.");
+                    }
+                };
+
+                recognizer.Canceled += (s, e) =>
+                {
+                    Console.WriteLine($"CANCELED: Reason={e.Reason}");
+
+                    if (e.Reason == CancellationReason.Error)
+                    {
+                        Console.WriteLine($"CANCELED: ErrorCode={e.ErrorCode}");
+                        Console.WriteLine($"CANCELED: ErrorDetails={e.ErrorDetails}");
+                        Console.WriteLine($"CANCELED: Did you update the subscription info?");
+                    }
+
+                    stopRecognition.TrySetResult(0);
+                };
+
+                recognizer.SessionStarted += (s, e) =>
+                {
+                    Console.WriteLine("\n    Session started event.");
+                };
+
+                recognizer.SessionStopped += (s, e) =>
+                {
+                    Console.WriteLine("\n    Session stopped event.");
+                    Console.WriteLine("\nStop recognition.");
+                    stopRecognition.TrySetResult(0);
+                };
+
+                /*
+                // Before starting recognition, add a phrase list to help recognition.
+                PhraseListGrammar phraseListGrammar = PhraseListGrammar.FromRecognizer(recognizer);
+                phraseListGrammar.AddPhrase("Puollan");
+                */
+
+                // Starts continuous recognition. Uses StopContinuousRecognitionAsync() to stop recognition.
+                await recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
+
+                // Waits for completion.
+                // Use Task.WaitAny to keep the task rooted.
+                Task.WaitAny(new[] { stopRecognition.Task });
+
+                // Stops recognition.
+                await recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
             }
         }
     }

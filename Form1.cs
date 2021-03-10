@@ -16,16 +16,40 @@ namespace dictation5
 {
     public partial class Form1 : Form
     {
+        //Globals
+        #region
+        public static int StopFlag = 0;
+        public static TaskCompletionSource<int> stopRecognition = new TaskCompletionSource<int>();
+        public static AutomationElement AutomElement = null;
+        #endregion
+
+        //Form1
         public Form1()
         {
             InitializeComponent();
-            
+            button2.Enabled = false;
             MouseHook.Start();
             MouseHook.MouseAction += new EventHandler(SetAutomationElement);
         }
 
+        //Button1 click
+        private async void button1_ClickAsync(object sender, EventArgs e)
+        {
+            button1.Enabled = false;
+            button2.Enabled = true;
+            StopFlag = 0;
+            await Speech.ContinuousRecognitionMicrofone();
+        }
+        
+        //Button2 click
+        private async void button2_ClickAsync(object sender, EventArgs e)
+        {
+            button2.Enabled = false;
+            button1.Enabled = true;
+            StopFlag = 1;
+        }
 
-        AutomationElement AutomElement = null;
+        //Find automation element
         private void SetAutomationElement(object sender, EventArgs e)
         {
             System.Drawing.Point MousePoint = System.Windows.Forms.Cursor.Position;
@@ -33,148 +57,84 @@ namespace dictation5
             Console.WriteLine(AutomElement.Current.Name);
         }
 
-
-        private async void button1_ClickAsync(object sender, EventArgs e)
+        //Insert text to automation element
+        public static void InsertText(AutomationElement targetControl, string value)
         {
-            await ContinuousRecognitionWithFileAsync();
-        }
+            // Validate arguments / initial setup
+            if (value == null)
+                throw new ArgumentNullException(
+                    "String parameter must not be null.");
 
-        // Continuous speech recognition.
-        public async Task ContinuousRecognitionWithFileAsync()
-        {  
-            // <recognitionContinuousWithFile>
-            // Creates an instance of a speech config with specified subscription key and service region.
-            // Replace with your own subscription key and service region (e.g., "westus").
-            var config = SpeechConfig.FromSubscription("86c28870596f4ec6af89c88c6fd56328", "northeurope");
-            config.SpeechRecognitionLanguage = "fi-FI";
-            config.EnableDictation();
+            if (targetControl == null)
+                throw new ArgumentNullException(
+                    "AutomationElement parameter must not be null");
 
-            var stopRecognition = new TaskCompletionSource<int>();
-
-            // Creates a speech recognizer using file as audio input.
-            // Replace with your own audio file name.
-            using (var recognizer = new SpeechRecognizer(config))
+            // A series of basic checks prior to attempting an insertion.
+            //
+            // Check #1: Is control enabled?
+            // An alternative to testing for static or read-only controls 
+            // is to filter using 
+            // PropertyCondition(AutomationElement.IsEnabledProperty, true) 
+            // and exclude all read-only text controls from the collection.
+            if (!targetControl.Current.IsEnabled)
             {
-                // Subscribes to events.
-                recognizer.Recognizing += (s, e) =>
-                {
-                    Console.WriteLine($"RECOGNIZING: Text={e.Result.Text}");
-                    //AppendText(" " + e.Result.Text);
-                };
-
-                recognizer.Recognized += (s, e) =>
-                {
-                    if (e.Result.Reason == ResultReason.RecognizedSpeech)
-                    {
-                        Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
-                        if (e.Result.Text.Trim().ToLower().StartsWith("otsikko"))
-                        {
-                            AppendText(e.Result.Text.ToLower().Replace("otsikko","").ToUpper(), "title");
-                        }
-                        else if (e.Result.Text.Trim().ToLower().StartsWith("väliotsikko"))
-                        {
-                            AppendText(e.Result.Text.ToLower().Replace("väliotsikko", "").ToUpper(), "subtitle");
-                        }
-                        else if (e.Result.Text.Trim().ToLower().StartsWith("diagnoosi"))
-                        {
-                            AppendText(e.Result.Text.ToLower().Replace("diagnoosi", ""), "diagnoosi");
-                        }
-                        else if (e.Result.Text.Trim().ToLower().StartsWith("taikasana"))
-                        {
-                            AppendText(e.Result.Text.ToLower().Replace("taikasana", "SIMSALABIM!"), "title");
-                        }
-                        else if (AutomElement!=null)
-                        {
-                            // Kirjoitetaan sanelun tulos valittuun AutomationElementtiin
-                            Speech.InsertText(AutomElement, e.Result.Text);
-                        }
-                        else
-                        {
-                            AppendText(e.Result.Text);
-                            //AppendBoldText(" " + e.Result.Text);
-                        }
-                    }
-                    else if (e.Result.Reason == ResultReason.NoMatch)
-                    {
-                        Console.WriteLine($"NOMATCH: Speech could not be recognized.");
-                        AppendText(" NOMATCH: Speech could not be recognized.");
-                    }
-                };
-
-                recognizer.Canceled += (s, e) =>
-                {
-                    Console.WriteLine($"CANCELED: Reason={e.Reason}");
-
-                    if (e.Reason == CancellationReason.Error)
-                    {
-                        Console.WriteLine($"CANCELED: ErrorCode={e.ErrorCode}");
-                        Console.WriteLine($"CANCELED: ErrorDetails={e.ErrorDetails}");
-                        Console.WriteLine($"CANCELED: Did you update the subscription info?");
-                    }
-
-                    stopRecognition.TrySetResult(0);
-                };
-
-                recognizer.SessionStarted += (s, e) =>
-                {
-                    Console.WriteLine("\n    Session started event.");
-                };
-
-                recognizer.SessionStopped += (s, e) =>
-                {
-                    Console.WriteLine("\n    Session stopped event.");
-                    Console.WriteLine("\nStop recognition.");
-                    stopRecognition.TrySetResult(0);
-                };
-
-                // Before starting recognition, add a phrase list to help recognition.
-                PhraseListGrammar phraseListGrammar = PhraseListGrammar.FromRecognizer(recognizer);
-                phraseListGrammar.AddPhrase("Puollan");
-
-                // Starts continuous recognition. Uses StopContinuousRecognitionAsync() to stop recognition.
-                await recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
-
-                // Waits for completion.
-                // Use Task.WaitAny to keep the task rooted.
-                Task.WaitAny(new[] { stopRecognition.Task });
-
-                // Stops recognition.
-                await recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
-            }
-            // </recognitionContinuousWithFile>
-        }
-
-        private void AppendText(string text, string textType = "")
-        {
-            if (this.InvokeRequired)
-            {
-                this.BeginInvoke((Action)delegate { this.AppendText(text, textType); });
-                return;
+                throw new InvalidOperationException(
+                    "The control is not enabled.\n\n");
             }
 
-            if (textType=="title")
+            // Check #2: Are there styles that prohibit us 
+            //           from sending text to this control?
+            /*if (!targetControl.Current.IsKeyboardFocusable)
             {
-                richTextBox1.AppendTitle(text);
-            }
-            else if (textType=="subtitle")
+                throw new InvalidOperationException(
+                    "The control is not focusable.\n\n");
+            }*/
+
+            // Once you have an instance of an AutomationElement,  
+            // check if it supports the ValuePattern pattern.
+            object valuePattern = null;
+
+            if (!targetControl.TryGetCurrentPattern(ValuePattern.Pattern, out valuePattern))
             {
-                richTextBox1.AppendSubTitle(text);
+                // Elements that support TextPattern 
+                // do not support ValuePattern and TextPattern
+                // does not support setting the text of 
+                // multi-line edit or document controls.
+                // For this reason, text input must be simulated.
+
+                // Set focus for input functionality and begin.
+                //targetControl.SetFocus();
+
+                // Pause before sending keyboard input.
+                Thread.Sleep(100);
+
+                // Delete existing content in the control and insert new content.
+                //SendKeys.SendWait("^{HOME}");   // Move to start of control
+                //SendKeys.SendWait("^+{END}");   // Select everything
+                //SendKeys.SendWait("{DEL}");     // Delete selection
+                SendKeys.SendWait(value);
             }
-            else if (textType == "diagnoosi")
-            {
-                richTextBox1.AppendDiagnosis(text);
-            }
+            // Control supports the ValuePattern pattern so we can 
+            // use the SetValue method to insert content.
             else
             {
-                richTextBox1.AppendLine(text);
-            } 
-        }
+                if (((ValuePattern)valuePattern).Current.IsReadOnly)
+                {
+                    throw new InvalidOperationException(
+                        "The control is read-only.");
+                }
+                else
+                {
+                    //((ValuePattern)valuePattern).SetValue(value);
+                    //targetControl.SetFocus();
 
-        
+                    // Pause before sending keyboard input.
+                    Thread.Sleep(100);
 
-        private void Form1_Load(object sender, EventArgs e)
-        {
-
+                    //SendKeys
+                    SendKeys.SendWait(value);
+                }
+            }
         }
     }
 }
