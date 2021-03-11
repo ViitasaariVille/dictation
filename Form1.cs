@@ -23,6 +23,11 @@ namespace dictation5
         public static AutomationElement AutomElement = null;
         #endregion
 
+        //Classes
+        #region
+        //Speech s = new Speech();
+        #endregion
+
         //Form1
         public Form1()
         {
@@ -38,7 +43,8 @@ namespace dictation5
             button1.Enabled = false;
             button2.Enabled = true;
             StopFlag = 0;
-            await Speech.ContinuousRecognitionMicrofone();
+
+            await ContinuousRecognitionMicrofone();
         }
         
         //Button2 click
@@ -57,8 +63,99 @@ namespace dictation5
             Console.WriteLine(AutomElement.Current.Name);
         }
 
+        //Continuous speech recognition from a microfone
+        public async Task ContinuousRecognitionMicrofone()
+        {
+            var config = SpeechConfig.FromSubscription(
+                Properties.Resources.SubscriptionKey,
+                Properties.Resources.Region);
+            config.SpeechRecognitionLanguage = "fi-FI";
+            config.EnableDictation();
+            //config.SetServiceProperty("punctuation", "explicit", ServicePropertyChannel.UriQueryParameter);
+
+            var stopRecognition = new TaskCompletionSource<int>();
+
+            using (var recognizer = new SpeechRecognizer(config))
+            {
+                string text;
+
+                // Subscribes to events.
+                recognizer.Recognizing += (s, e) =>
+                {
+                    Console.WriteLine($"RECOGNIZING: Text={e.Result.Text}");
+                    if (Form1.StopFlag == 1)
+                    {
+                        Console.WriteLine("Lopetetaan puheentunnistus");
+                        stopRecognition.TrySetResult(0);
+                    }
+                };
+
+                recognizer.Recognized += (s, e) =>
+                {
+                    if (e.Result.Reason == ResultReason.RecognizedSpeech)
+                    {
+                        Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
+                        if (AutomElement == null)
+                        {
+                            AppendText2(PostProcessing.PostProcessText(e.Result.Text));
+                        }
+                        else
+                        {
+                            InsertText(AutomElement, PostProcessing.PostProcessText(e.Result.Text));
+                        }
+                    }
+                    else if (e.Result.Reason == ResultReason.NoMatch)
+                    {
+                        Console.WriteLine($"NOMATCH: Speech could not be recognized.");
+                    }
+                };
+
+                recognizer.Canceled += (s, e) =>
+                {
+                    Console.WriteLine($"CANCELED: Reason={e.Reason}");
+
+                    if (e.Reason == CancellationReason.Error)
+                    {
+                        Console.WriteLine($"CANCELED: ErrorCode={e.ErrorCode}");
+                        Console.WriteLine($"CANCELED: ErrorDetails={e.ErrorDetails}");
+                        Console.WriteLine($"CANCELED: Did you update the subscription info?");
+                    }
+
+                    stopRecognition.TrySetResult(0);
+                };
+
+                recognizer.SessionStarted += (s, e) =>
+                {
+                    Console.WriteLine("\n    Session started event.");
+                };
+
+                recognizer.SessionStopped += (s, e) =>
+                {
+                    Console.WriteLine("\n    Session stopped event.");
+                    Console.WriteLine("\nStop recognition.");
+                    stopRecognition.TrySetResult(0);
+                };
+
+                /*
+                // Before starting recognition, add a phrase list to help recognition.
+                PhraseListGrammar phraseListGrammar = PhraseListGrammar.FromRecognizer(recognizer);
+                phraseListGrammar.AddPhrase("Puollan");
+                */
+
+                // Starts continuous recognition. Uses StopContinuousRecognitionAsync() to stop recognition.
+                await recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
+
+                // Waits for completion.
+                // Use Task.WaitAny to keep the task rooted.
+                Task.WaitAny(new[] { stopRecognition.Task });
+
+                // Stops recognition.
+                await recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
+            }
+        }
+
         //Insert text to automation element
-        public static void InsertText(AutomationElement targetControl, string value)
+        public void InsertText(AutomationElement targetControl, string value)
         {
             // Validate arguments / initial setup
             if (value == null)
@@ -113,6 +210,7 @@ namespace dictation5
                 //SendKeys.SendWait("^+{END}");   // Select everything
                 //SendKeys.SendWait("{DEL}");     // Delete selection
                 SendKeys.SendWait(value);
+                //SendKeys.Send(value);
             }
             // Control supports the ValuePattern pattern so we can 
             // use the SetValue method to insert content.
@@ -133,8 +231,53 @@ namespace dictation5
 
                     //SendKeys
                     SendKeys.SendWait(value);
+                    //SendKeys.Send(value);
                 }
             }
+        }
+
+        //Append text
+        public void AppendText2(String text)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<string>(AppendText2), new object[] { text });
+                return;
+            }
+            this.richTextBox1.Text += text;
+        }
+        public void AppendText(string text, string textType = "")
+        {
+            if (this.InvokeRequired)
+            {
+                this.BeginInvoke((Action)delegate { this.AppendText(text, textType); });
+                return;
+            }
+            if (textType == "title")
+            {
+                richTextBox1.AppendTitle(text);
+            }
+            else if (textType == "subtitle")
+            {
+                richTextBox1.AppendSubTitle(text);
+            }
+            else if (textType == "diagnoosi")
+            {
+                richTextBox1.AppendDiagnosis(text);
+            }
+            else
+            {
+                richTextBox1.AppendLine(text);
+            }
+        }
+
+        //Programmatically close the form
+        public static void StopDictating()
+        {
+            //button2.Enabled = false;
+            //button1.Enabled = true;
+            StopFlag = 1;
+            Console.WriteLine("Lopetetaan sanelu");
         }
     }
 }

@@ -10,10 +10,10 @@ using System.Windows.Forms;
 
 namespace dictation5
 {
-    public static class Speech
+    public class Speech
     {
         //Continuous speech recognition from a microfone
-        public static async Task ContinuousRecognitionMicrofone()
+        public async Task ContinuousRecognitionMicrofone1()
         {
             var config = SpeechConfig.FromSubscription(
                 Properties.Resources.SubscriptionKey,
@@ -43,12 +43,11 @@ namespace dictation5
                     if (e.Result.Reason == ResultReason.RecognizedSpeech)
                     {
                         Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
-                        PostProcessing.PostProcessText(e.Result.Text);
+                        var test = PostProcessing.PostProcessText(e.Result.Text);
                     }
                     else if (e.Result.Reason == ResultReason.NoMatch)
                     {
                         Console.WriteLine($"NOMATCH: Speech could not be recognized.");
-                        //Form1.AppendText(" NOMATCH: Speech could not be recognized.");
                     }
                 };
 
