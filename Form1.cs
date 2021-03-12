@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using Microsoft.CognitiveServices.Speech;
 using System.Windows.Automation;
 using System.Threading;
+using Microsoft.CognitiveServices.Speech.Audio;
 
 namespace dictation5
 {
@@ -19,7 +20,7 @@ namespace dictation5
         //Globals
         #region
         public static int StopFlag = 0;
-        public static TaskCompletionSource<int> stopRecognition = new TaskCompletionSource<int>();
+        public TaskCompletionSource<int> stopRecognition = new TaskCompletionSource<int>();
         public static AutomationElement AutomElement = null;
         #endregion
 
@@ -38,12 +39,11 @@ namespace dictation5
         }
 
         //Button1 click
-        private async void button1_ClickAsync(object sender, EventArgs e)
+        public async void button1_ClickAsync(object sender, EventArgs e)
         {
             button1.Enabled = false;
             button2.Enabled = true;
             StopFlag = 0;
-
             await ContinuousRecognitionMicrofone();
         }
         
@@ -54,6 +54,13 @@ namespace dictation5
             button1.Enabled = true;
             StopFlag = 1;
         }
+        private async void button3_Click(object sender, EventArgs e)
+        {
+            string InputFile = @"C:\Users\ville\Documents\puhe\aaniraidat\1-Työkykyarvio_Janne_DM.wav";
+            string OutputFile = @"C:\Users\ville\Documents\puhe\TextFiles\test.txt";
+            await ContinuousRecognitionWithFileAsync(InputFile, OutputFile);
+        }
+
 
         //Find automation element
         private void SetAutomationElement(object sender, EventArgs e)
@@ -153,6 +160,89 @@ namespace dictation5
                 await recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
             }
         }
+
+        // Continuous speech recognition from a file
+        public async Task ContinuousRecognitionWithFileAsync(string InputFile, string OutputFile)
+        {
+            // <recognitionContinuousWithFile>
+            // Creates an instance of a speech config with specified subscription key and service region.
+            // Replace with your own subscription key and service region (e.g., "westus").
+            var config = SpeechConfig.FromSubscription(
+                Properties.Resources.SubscriptionKey,
+                Properties.Resources.Region);
+            config.SpeechRecognitionLanguage = "fi-FI";
+            config.EnableDictation();
+
+            var stopRecognition = new TaskCompletionSource<int>();
+
+            string RecognizedText = "";
+
+            // Creates a speech recognizer using file as audio input.
+            // Replace with your own audio file name.
+            using (var audioInput = AudioConfig.FromWavFileInput(InputFile))
+            {
+                using (var recognizer = new SpeechRecognizer(config, audioInput))
+                {
+                    // Subscribes to events.
+                    recognizer.Recognizing += (s, e) =>
+                    {
+                        Console.WriteLine($"RECOGNIZING: Text={e.Result.Text}");
+                    };
+
+                    recognizer.Recognized += (s, e) =>
+                    {
+                        if (e.Result.Reason == ResultReason.RecognizedSpeech)
+                        {
+                            Console.WriteLine($"RECOGNIZED: Text={e.Result.Text}");
+                            RecognizedText += " " + e.Result.Text;
+                        }
+                        else if (e.Result.Reason == ResultReason.NoMatch)
+                        {
+                            Console.WriteLine($"NOMATCH: Speech could not be recognized.");
+                        }
+                    };
+
+                    recognizer.Canceled += (s, e) =>
+                    {
+                        Console.WriteLine($"CANCELED: Reason={e.Reason}");
+
+                        if (e.Reason == CancellationReason.Error)
+                        {
+                            Console.WriteLine($"CANCELED: ErrorCode={e.ErrorCode}");
+                            Console.WriteLine($"CANCELED: ErrorDetails={e.ErrorDetails}");
+                            Console.WriteLine($"CANCELED: Did you update the subscription info?");
+                        }
+
+                        stopRecognition.TrySetResult(0);
+                    };
+
+                    recognizer.SessionStarted += (s, e) =>
+                    {
+                        Console.WriteLine("\n    Session started event.");
+                    };
+
+                    recognizer.SessionStopped += (s, e) =>
+                    {
+                        Write2file.WriteText(OutputFile, RecognizedText);
+                        Console.WriteLine("\n    Session stopped event.");
+                        Console.WriteLine("\nStop recognition.");
+                        stopRecognition.TrySetResult(0);
+                    };
+
+                    // Starts continuous recognition. Uses StopContinuousRecognitionAsync() to stop recognition.
+                    await recognizer.StartContinuousRecognitionAsync().ConfigureAwait(false);
+
+                    // Waits for completion.
+                    // Use Task.WaitAny to keep the task rooted.
+                    Task.WaitAny(new[] { stopRecognition.Task });
+
+                    // Stops recognition.
+                    await recognizer.StopContinuousRecognitionAsync().ConfigureAwait(false);
+                }
+            }
+            // </recognitionContinuousWithFile>
+        }
+
 
         //Insert text to automation element
         public void InsertText(AutomationElement targetControl, string value)
@@ -279,5 +369,7 @@ namespace dictation5
             StopFlag = 1;
             Console.WriteLine("Lopetetaan sanelu");
         }
+
+       
     }
 }

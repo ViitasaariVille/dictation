@@ -268,5 +268,6 @@ namespace dictation5
             return (tuhannet * 1000 + kymmenet * 10 + ykkoset).ToString();
         }
 
+
     }
 }
