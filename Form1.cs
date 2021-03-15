@@ -60,7 +60,7 @@ namespace dictation5
         {
             //string[] test = null;
             //string outputFile = "";
-            string targetDirectory = @"C:\Users\ville\Documents\puhe\aaniraidat";
+            string targetDirectory = @"C:\Users\ville\Documents\puhe\wav";
             // Process the list of files found in the directory.
             string[] fileEntries = Directory.GetFiles(targetDirectory);
             foreach (string fileName in fileEntries)
