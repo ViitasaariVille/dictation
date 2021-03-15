@@ -12,6 +12,8 @@ using Microsoft.CognitiveServices.Speech;
 using System.Windows.Automation;
 using System.Threading;
 using Microsoft.CognitiveServices.Speech.Audio;
+using System.IO;
+using ExtensionMethods;
 
 namespace dictation5
 {
@@ -54,11 +56,23 @@ namespace dictation5
             button1.Enabled = true;
             StopFlag = 1;
         }
-        private async void button3_Click(object sender, EventArgs e)
+        private void button3_Click(object sender, EventArgs e)
         {
-            string InputFile = @"C:\Users\ville\Documents\puhe\aaniraidat\1-Työkykyarvio_Janne_DM.wav";
-            string OutputFile = @"C:\Users\ville\Documents\puhe\TextFiles\test.txt";
-            await ContinuousRecognitionWithFileAsync(InputFile, OutputFile);
+            //string[] test = null;
+            //string outputFile = "";
+            string targetDirectory = @"C:\Users\ville\Documents\puhe\aaniraidat";
+            // Process the list of files found in the directory.
+            string[] fileEntries = Directory.GetFiles(targetDirectory);
+            foreach (string fileName in fileEntries)
+                ProcessFile(fileName);
+                //Console.WriteLine(fileName);
+        }
+
+        private async void ProcessFile(string fileName)
+        {
+            Console.WriteLine(fileName);
+            string OutputFile = @"C:\Users\ville\Documents\puhe\TextFiles\" + fileName.Split(@"\")[6] + ".txt";
+            await ContinuousRecognitionWithFileAsync(fileName, OutputFile);
         }
 
 
